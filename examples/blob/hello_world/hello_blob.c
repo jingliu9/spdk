@@ -39,6 +39,7 @@
 #include "spdk/blob_bdev.h"
 #include "spdk/blob.h"
 #include "spdk/log.h"
+#include <sys/syscall.h>
 
 /*
  * We'll use this struct to gather housekeeping hello_context to pass between
@@ -355,6 +356,7 @@ static void
 create_blob(struct hello_context_t *hello_context)
 {
 	SPDK_NOTICELOG("entry\n");
+    fprintf(stderr, "create_blob cb:%p", blob_create_complete);
 	spdk_bs_create_blob(hello_context->bs, blob_create_complete, hello_context);
 }
 
@@ -402,6 +404,7 @@ hello_start(void *arg1, void *arg2)
 	struct spdk_bdev *bdev = NULL;
 	struct spdk_bs_dev *bs_dev = NULL;
 
+
 	SPDK_NOTICELOG("entry\n");
 	/*
 	 * Get the bdev. For this example it is our malloc (RAM)
@@ -409,6 +412,9 @@ hello_start(void *arg1, void *arg2)
 	 * in when we started the SPDK app framework so we can
 	 * get it via its name.
 	 */
+    pid_t x = syscall(__NR_gettid);
+    fprintf(stderr, "hello_start pid:%u\n", x);
+    printf("------------------- hello_blob ----------------- will do spdk_bdev_get_by_name\n");
 	bdev = spdk_bdev_get_by_name("Malloc0");
 	if (bdev == NULL) {
 		SPDK_ERRLOG("Could not find a bdev\n");
@@ -450,6 +456,7 @@ main(int argc, char **argv)
 
 	/* Set default values in opts structure. */
 	spdk_app_opts_init(&opts);
+    printf("spdk_app_opts_init\n");
 
 	/*
 	 * Setup a few specifics before we init, for most SPDK cmd line

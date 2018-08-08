@@ -45,7 +45,7 @@
 #include "spdk_internal/log.h"
 
 #include "blobstore.h"
-
+#include <sys/syscall.h>
 #define BLOB_CRC32C_INITIAL    0xffffffffUL
 
 static int spdk_bs_register_md_thread(struct spdk_blob_store *bs);
@@ -967,6 +967,7 @@ _spdk_blob_persist_complete(spdk_bs_sequence_t *seq, void *cb_arg, int bserrno)
 {
 	struct spdk_blob_persist_ctx	*ctx = cb_arg;
 	struct spdk_blob		*blob = ctx->blob;
+    fprintf(stderr, "_spdk_blob_persist_complete will call fn:%p\n", ctx->cb_arg);
 
 	if (bserrno == 0) {
 		_spdk_blob_mark_clean(blob);
@@ -1106,7 +1107,8 @@ _spdk_blob_persist_zero_pages(spdk_bs_sequence_t *seq, void *cb_arg, int bserrno
 	uint32_t			lba_count;
 	spdk_bs_batch_t			*batch;
 	size_t				i;
-
+    
+    fprintf(stderr, "_spdk_blob_persist_zero_pages_cpl\n");
 	batch = spdk_bs_sequence_to_batch(seq, _spdk_blob_persist_zero_pages_cpl, ctx);
 
 	lba_count = _spdk_bs_byte_to_lba(bs, SPDK_BS_PAGE_SIZE);
@@ -1144,6 +1146,7 @@ _spdk_blob_persist_write_page_root(spdk_bs_sequence_t *seq, void *cb_arg, int bs
 	uint64_t			lba;
 	uint32_t			lba_count;
 	struct spdk_blob_md_page	*page;
+    fprintf(stderr, "_spdk_blob_persist_write_page_root\n");
 
 	if (blob->active.num_pages == 0) {
 		/* Move on to the next step */
@@ -1173,6 +1176,8 @@ _spdk_blob_persist_write_page_chain(spdk_bs_sequence_t *seq, void *cb_arg, int b
 	spdk_bs_batch_t			*batch;
 	size_t				i;
 
+    fprintf(stderr, "@@@@@@ _spdk_blob_persist_write_page_chain\n");
+
 	/* Clusters don't move around in blobs. The list shrinks or grows
 	 * at the end, but no changes ever occur in the middle of the list.
 	 */
@@ -1180,6 +1185,8 @@ _spdk_blob_persist_write_page_chain(spdk_bs_sequence_t *seq, void *cb_arg, int b
 	lba_count = _spdk_bs_byte_to_lba(bs, sizeof(*page));
 
 	batch = spdk_bs_sequence_to_batch(seq, _spdk_blob_persist_write_page_root, ctx);
+    pid_t x = syscall(__NR_gettid);
+    fprintf(stderr, "spdk_bs_sequence_to_batch return pid:%u\n", x);
 
 	/* This starts at 1. The root page is not written until
 	 * all of the others are finished
@@ -1191,6 +1198,7 @@ _spdk_blob_persist_write_page_chain(spdk_bs_sequence_t *seq, void *cb_arg, int b
 		lba = _spdk_bs_page_to_lba(bs, bs->md_start + blob->active.pages[i]);
 
 		spdk_bs_batch_write_dev(batch, page, lba, lba_count);
+        fprintf(stderr, "spdk_bs_batch_write_dev return: lba:%lu lba_count:%u\n", lba, lba_count);
 	}
 
 	spdk_bs_batch_close(batch);
@@ -1278,6 +1286,7 @@ _spdk_blob_persist_start(struct spdk_blob_persist_ctx *ctx)
 	uint64_t i;
 	uint32_t page_num;
 	int rc;
+    fprintf(stderr, "@@@@@@ _spdk_blob_persist_start\n");
 
 	if (blob->active.num_pages == 0) {
 		/* This is the signal that the blob should be deleted.
@@ -1346,10 +1355,12 @@ _spdk_blob_persist(spdk_bs_sequence_t *seq, struct spdk_blob *blob,
 		   spdk_bs_sequence_cpl cb_fn, void *cb_arg)
 {
 	struct spdk_blob_persist_ctx *ctx;
+    fprintf(stderr, "@@@@@@ _spdk_blob_persist\n");
 
 	_spdk_blob_verify_md_op(blob);
 
 	if (blob->state == SPDK_BLOB_STATE_CLEAN) {
+        fprintf(stderr, "@@@@@@ _spdk_blob_persist: SPDK_BLOB_STATE_CLEAN\n");
 		cb_fn(seq, cb_arg, 0);
 		return;
 	}
@@ -3040,6 +3051,7 @@ spdk_bs_init(struct spdk_bs_dev *dev, struct spdk_bs_opts *o,
 	int			rc;
 
 	SPDK_DEBUGLOG(SPDK_LOG_BLOB, "Initializing blobstore on dev %p\n", dev);
+    printf("blobstore.c/spdk_bs_init()\n");
 
 	if ((SPDK_BS_PAGE_SIZE % dev->blocklen) != 0) {
 		SPDK_ERRLOG("unsupported dev block length of %d\n",
@@ -3605,7 +3617,8 @@ _spdk_bs_create_blob(struct spdk_blob_store *bs,
 	spdk_bs_sequence_t	*seq;
 	spdk_blob_id		id;
 	int rc;
-
+    
+    fprintf(stderr, "@@@@@@_spdk_bs_create_blob cb_fn:%p\n", cb_fn);
 	assert(spdk_get_thread() == bs->md_thread);
 
 	page_idx = spdk_bit_array_find_first_clear(bs->used_md_pages, 0);
@@ -3666,6 +3679,7 @@ _spdk_bs_create_blob(struct spdk_blob_store *bs,
 
 	seq = spdk_bs_sequence_start(bs->md_channel, &cpl);
 	if (!seq) {
+        fprintf(stderr, "spdk_bs_sequence_start return NULL\n");
 		_spdk_blob_free(blob);
 		cb_fn(cb_arg, 0, -ENOMEM);
 		return;

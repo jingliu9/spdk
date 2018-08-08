@@ -541,6 +541,7 @@ spdk_ioat_probe(void *cb_ctx, spdk_ioat_probe_cb probe_cb, spdk_ioat_attach_cb a
 	int rc;
 	struct ioat_enum_ctx enum_ctx;
 
+    printf("spdk_ioat_probe\n");
 	pthread_mutex_lock(&g_ioat_driver.lock);
 
 	enum_ctx.probe_cb = probe_cb;

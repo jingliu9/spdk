@@ -264,13 +264,19 @@ spdk_bdev_get_by_name(const char *bdev_name)
 {
 	struct spdk_bdev_alias *tmp;
 	struct spdk_bdev *bdev = spdk_bdev_first();
-
+    printf("Lib/bdev/bdev.c/spdk_bdev_get_by_name(%s)\n", bdev_name);
+    if(bdev == NULL){
+        printf("spdk_bdev_get_by_name(): spdk_bdev_first is NULL\n");
+    }else{
+        printf("first name is:%s\n", bdev->name);
+    }
 	while (bdev != NULL) {
 		if (strcmp(bdev_name, bdev->name) == 0) {
 			return bdev;
 		}
 
 		TAILQ_FOREACH(tmp, &bdev->aliases, tailq) {
+            printf("current bdevname to compare:%s\n", tmp->alias);
 			if (strcmp(bdev_name, tmp->alias) == 0) {
 				return bdev;
 			}
@@ -278,7 +284,7 @@ spdk_bdev_get_by_name(const char *bdev_name)
 
 		bdev = spdk_bdev_next(bdev);
 	}
-
+    printf("spdk_bdev_get_by_name() will return NULL\n");
 	return NULL;
 }
 
@@ -562,6 +568,7 @@ spdk_bdev_modules_init(void)
 {
 	struct spdk_bdev_module *module;
 	int rc = 0;
+    printf("lib/bdev/bdev.c spdk_bdev_modules_init()\n");
 
 	TAILQ_FOREACH(module, &g_bdev_mgr.bdev_modules, tailq) {
 		spdk_io_device_register(module,
@@ -585,6 +592,7 @@ spdk_bdev_initialize(spdk_bdev_init_cb cb_fn, void *cb_arg)
 	char mempool_name[32];
 
 	assert(cb_fn != NULL);
+    printf("lib/bdev/bdev.c spdk_bdev_initialize\n");
 
 	g_init_cb_fn = cb_fn;
 	g_init_cb_arg = cb_arg;
@@ -2423,6 +2431,7 @@ static int
 spdk_bdev_init(struct spdk_bdev *bdev)
 {
 	assert(bdev->module != NULL);
+    printf("libs/bdev/bdev.c spdk_bdev_init()\n");
 
 	if (!bdev->name) {
 		SPDK_ERRLOG("Bdev name is NULL\n");
@@ -2486,6 +2495,7 @@ static void
 spdk_bdev_start(struct spdk_bdev *bdev)
 {
 	struct spdk_bdev_module *module;
+    printf("lib/bdev/bdev.c/spdk_bdev_start name:%s\n", bdev->name);
 
 	SPDK_DEBUGLOG(SPDK_LOG_BDEV, "Inserting bdev %s into list\n", bdev->name);
 	TAILQ_INSERT_TAIL(&g_bdev_mgr.bdevs, bdev, link);
@@ -2501,8 +2511,9 @@ spdk_bdev_start(struct spdk_bdev *bdev)
 int
 spdk_bdev_register(struct spdk_bdev *bdev)
 {
+    printf("lib/bdev/bdev.c/spdk_bdev_register name:%s\n", bdev->name);
 	int rc = spdk_bdev_init(bdev);
-
+    
 	if (rc == 0) {
 		spdk_bdev_start(bdev);
 	}
@@ -2602,13 +2613,14 @@ int
 spdk_vbdev_register(struct spdk_bdev *vbdev, struct spdk_bdev **base_bdevs, int base_bdev_count)
 {
 	int rc;
-
+    printf("spdk_vbdev_register:%s\n", vbdev->name);
 	rc = spdk_bdev_init(vbdev);
 	if (rc) {
 		return rc;
 	}
 
 	if (base_bdev_count == 0) {
+        printf("base_bdev_count == 0 will start vbdev\n");
 		spdk_bdev_start(vbdev);
 		return 0;
 	}

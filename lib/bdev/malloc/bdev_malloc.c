@@ -381,6 +381,7 @@ struct spdk_bdev *create_malloc_disk(const char *name, const struct spdk_uuid *u
 {
 	struct malloc_disk	*mdisk;
 	int			rc;
+    printf("lib/bdev/malloc/bdev_malloc.c create_malloc_dict\n");
 
 	if (block_size % 512 != 0) {
 		SPDK_ERRLOG("Block size %u is not a multiple of 512.\n", block_size);
@@ -454,6 +455,7 @@ static int bdev_malloc_initialize(void)
 	int NumberOfLuns, LunSizeInMB, BlockSize, i, rc = 0;
 	uint64_t size;
 	struct spdk_bdev *bdev;
+    printf("lib/bdev/malloc/bdev_malloc.c bdev_malloc_initialize\n");
 
 	if (sp != NULL) {
 		NumberOfLuns = spdk_conf_section_get_intval(sp, "NumberOfLuns");
@@ -477,7 +479,9 @@ static int bdev_malloc_initialize(void)
 				goto end;
 			}
 		}
-	}
+	}else{
+        printf("bdev_malloc_initialize == NULL\n");
+    }
 
 end:
 	return rc;

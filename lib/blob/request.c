@@ -40,6 +40,7 @@
 #include "spdk/queue.h"
 
 #include "spdk_internal/log.h"
+#include <sys/syscall.h>
 
 void
 spdk_bs_call_cpl(struct spdk_bs_cpl *cpl, int bserrno)
@@ -84,6 +85,8 @@ spdk_bs_request_set_complete(struct spdk_bs_request_set *set)
 {
 	struct spdk_bs_cpl cpl = set->cpl;
 	int bserrno = set->bserrno;
+    pid_t x = syscall(__NR_gettid);
+    fprintf(stderr, "spdk_bs_request_set_complete pid:%u\n", x);
 
 	TAILQ_INSERT_TAIL(&set->channel->reqs, set, link);
 
@@ -105,6 +108,7 @@ spdk_bs_sequence_start(struct spdk_io_channel *_channel,
 {
 	struct spdk_bs_channel		*channel;
 	struct spdk_bs_request_set	*set;
+    fprintf(stderr, "@@@@@@ spdk_bs_sequence_start\n");
 
 	channel = spdk_io_channel_get_ctx(_channel);
 
@@ -287,7 +291,8 @@ spdk_bs_batch_completion(struct spdk_io_channel *_channel,
 			 void *cb_arg, int bserrno)
 {
 	struct spdk_bs_request_set	*set = cb_arg;
-
+    pid_t x = syscall(__NR_gettid);
+    fprintf(stderr, "spdk_bs_batch_completion cb_arg:%p %u\n", cb_arg, x);
 	set->u.batch.outstanding_ops--;
 	if (bserrno != 0) {
 		set->bserrno = bserrno;
@@ -503,6 +508,8 @@ spdk_bs_batch_t *
 spdk_bs_sequence_to_batch(spdk_bs_sequence_t *seq, spdk_bs_sequence_cpl cb_fn, void *cb_arg)
 {
 	struct spdk_bs_request_set *set = (struct spdk_bs_request_set *)seq;
+    pid_t x = syscall(__NR_gettid);
+    fprintf(stderr, "spdk_bs_sequence_to_batch cb_fn:%p pid:%u\n", cb_fn, x);
 
 	set->u.batch.cb_fn = cb_fn;
 	set->u.batch.cb_arg = cb_arg;

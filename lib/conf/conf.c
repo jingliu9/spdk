@@ -226,8 +226,10 @@ spdk_conf_find_section(struct spdk_conf *cp, const char *name)
 	}
 
 	for (sp = cp->section; sp != NULL; sp = sp->next) {
+        printf("for sp = cp->section\n");
 		if (sp->name != NULL && sp->name[0] == name[0]
 		    && strcasecmp(sp->name, name) == 0) {
+            printf("sp->name:%s name:%s\n", sp->name, name);
 			return sp;
 		}
 	}

@@ -119,5 +119,6 @@ spdk_pci_ioat_device_attach(spdk_pci_enum_cb enum_cb, void *enum_ctx,
 int
 spdk_pci_ioat_enumerate(spdk_pci_enum_cb enum_cb, void *enum_ctx)
 {
+    printf("spdk_pci_ioat_enumerate\n");
 	return spdk_pci_enumerate(&g_ioat_pci_drv, enum_cb, enum_ctx);
 }

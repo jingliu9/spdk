@@ -422,6 +422,7 @@ _spdk_reactor_run(void *arg)
 	uint32_t		sleep_us;
 	uint32_t		timer_poll_count;
 	char			thread_name[32];
+    printf("lib/event/reactor.c spdk_reactor run\n");
 
 	snprintf(thread_name, sizeof(thread_name), "reactor_%u", reactor->lcore);
 	if (spdk_allocate_thread(_spdk_reactor_send_msg,

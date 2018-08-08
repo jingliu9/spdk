@@ -198,7 +198,7 @@ spdk_mempool_create_ctor(const char *name, size_t count,
 	if (cache_size > RTE_MEMPOOL_CACHE_MAX_SIZE) {
 		cache_size = RTE_MEMPOOL_CACHE_MAX_SIZE;
 	}
-
+    printf("will call rte_mempool_create(name:%s, count:%d ele_size:%d cache_size:%d)\n", name, count, ele_size, cache_size);
 	mp = rte_mempool_create(name, count, ele_size, cache_size,
 				0, NULL, NULL, (rte_mempool_obj_cb_t *)obj_init, obj_init_arg,
 				socket_id, MEMPOOL_F_NO_PHYS_CONTIG);
