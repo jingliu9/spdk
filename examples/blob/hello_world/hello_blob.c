@@ -46,15 +46,23 @@
  * our events and callbacks.
  */
 struct hello_context_t {
+    struct spdk_bs_dev *bsdev;
 	struct spdk_blob_store *bs;
+    struct spdk_blob_store *bs_2;
 	struct spdk_blob *blob;
 	spdk_blob_id blobid;
+    spdk_blob_id blobid_2;
 	struct spdk_io_channel *channel;
 	uint8_t *read_buff;
 	uint8_t *write_buff;
 	uint64_t page_size;
 	int rc;
 };
+
+static inline pid_t get_thread_tid(void){
+    pid_t x = syscall(SYS_gettid);
+    return x;
+}
 
 /*
  * Free up memory that we allocated.
@@ -94,11 +102,15 @@ unload_bs(struct hello_context_t *hello_context, char *msg, int bserrno)
 		SPDK_ERRLOG("%s (err %d)\n", msg, bserrno);
 		hello_context->rc = bserrno;
 	}
-	if (hello_context->bs) {
+	if (hello_context->bs || hello_context->bs_2) {
 		if (hello_context->channel) {
 			spdk_bs_free_io_channel(hello_context->channel);
 		}
-		spdk_bs_unload(hello_context->bs, unload_complete, hello_context);
+        if(hello_context->bs){
+		    spdk_bs_unload(hello_context->bs, unload_complete, hello_context);
+        }else{
+		    spdk_bs_unload(hello_context->bs_2, unload_complete, hello_context);
+        }
 	} else {
 		spdk_app_stop(bserrno);
 	}
@@ -142,6 +154,99 @@ delete_blob(void *arg1, int bserrno)
 			    delete_complete, hello_context);
 }
 
+static void
+blob_iter_cb(void *arg1, struct spdk_blob *blob, int bserrno)
+{
+    struct hello_context_t *hello_context = arg1;
+    fprintf(stderr, "blob_iter_cb:\n");
+
+	if (bserrno) {
+        if(bserrno == -ENOENT){
+            fprintf(stderr,"NO More BLOB found err(%d)\n", bserrno);
+            unload_bs(hello_context, "", 0);
+            return;
+        }else{
+		    unload_bs(hello_context, "Error in blob iter callback", bserrno);
+		    return;
+        }
+	}
+    printf("Found blob with ID# %lu\n",spdk_blob_get_id(blob));
+    spdk_bs_iter_next(hello_context->bs_2, blob, blob_iter_cb, hello_context);
+}
+
+
+
+static void
+create_2nd_complete(void *arg1, spdk_blob_id blobid, int bserrno)
+{
+	struct hello_context_t *hello_context = arg1;
+    fprintf(stderr, "blob_create_complete blobid:%lu\n", blobid);
+
+	SPDK_NOTICELOG("entry\n");
+	if (bserrno) {
+		unload_bs(hello_context, "Error in blob create callback",
+			  bserrno);
+		return;
+	}
+
+	hello_context->blobid_2 = blobid;
+	SPDK_NOTICELOG("new blob id %" PRIu64 "\n", hello_context->blobid_2);
+    spdk_bs_iter_first(hello_context->bs_2, blob_iter_cb, hello_context);
+}
+
+
+static void
+create_2nd_blob(struct hello_context_t *hello_context)
+{
+	spdk_bs_create_blob(hello_context->bs_2, create_2nd_complete, hello_context);
+}
+
+static void
+bs_load_complete(void *cb_arg, struct spdk_blob_store *bs,
+		 int bserrno)
+{
+	struct hello_context_t *hello_context = cb_arg;
+    SPDK_NOTICELOG("entry\n");
+	if (bserrno) {
+		unload_bs(hello_context, "Error init'ing the blobstore",
+			  bserrno);
+		return;
+	}
+    hello_context->bs_2 = bs;
+    create_2nd_blob(hello_context);
+}
+
+static void
+close_blobstore(void *arg1, int bserrno)
+{
+	struct hello_context_t *hello_context = arg1;
+    struct spdk_bdev *bdev = NULL;
+    struct spdk_bs_dev *bs_dev = NULL;
+
+	SPDK_NOTICELOG("entry\n");
+	if (bserrno) {
+		unload_bs(hello_context, "Error in close completion",
+			  bserrno);
+		return;
+	}
+	unload_bs(hello_context, "", 0);
+    // reload bs
+	bdev = spdk_bdev_get_by_name("Malloc0");
+    if (bdev == NULL) {
+		SPDK_ERRLOG("Could not find a bdev\n");
+		spdk_app_stop(-1);
+		return;
+	}
+    bs_dev = spdk_bdev_create_bs_dev(bdev, NULL, NULL);
+	if (bs_dev == NULL) {
+		SPDK_ERRLOG("Could not create blob bdev!!\n");
+		spdk_app_stop(-1);
+		return;
+	}
+    spdk_bs_load(bs_dev, NULL, bs_load_complete, hello_context);
+}
+
+
 /*
  * Callback function for reading a blob.
  */
@@ -169,7 +274,8 @@ read_complete(void *arg1, int bserrno)
 	}
 
 	/* Now let's close it and delete the blob in the callback. */
-	spdk_blob_close(hello_context->blob, delete_blob, hello_context);
+	//spdk_blob_close(hello_context->blob, delete_blob, hello_context);
+	spdk_blob_close(hello_context->blob, close_blobstore, hello_context);
 }
 
 /*
@@ -333,6 +439,7 @@ static void
 blob_create_complete(void *arg1, spdk_blob_id blobid, int bserrno)
 {
 	struct hello_context_t *hello_context = arg1;
+    fprintf(stderr, "blob_create_complete blobid:%lu\n", blobid);
 
 	SPDK_NOTICELOG("entry\n");
 	if (bserrno) {
@@ -358,6 +465,8 @@ create_blob(struct hello_context_t *hello_context)
 	SPDK_NOTICELOG("entry\n");
     fprintf(stderr, "create_blob cb:%p", blob_create_complete);
 	spdk_bs_create_blob(hello_context->bs, blob_create_complete, hello_context);
+    pid_t x = syscall(SYS_gettid);
+    fprintf(stderr, "create_blob return pid:%u\n", x);
 }
 
 /*
@@ -371,6 +480,7 @@ bs_init_complete(void *cb_arg, struct spdk_blob_store *bs,
 
 	SPDK_NOTICELOG("entry\n");
 	if (bserrno) {
+        SPDK_ERRLOG("Error %d loading blobstore\n", bserrno);
 		unload_bs(hello_context, "Error init'ing the blobstore",
 			  bserrno);
 		return;
@@ -392,6 +502,7 @@ bs_init_complete(void *cb_arg, struct spdk_blob_store *bs,
 	 * work that they do.
 	 */
 	create_blob(hello_context);
+    fprintf(stderr, "in bs_init_complete, create_blob_return\n");
 }
 
 /*
@@ -414,7 +525,7 @@ hello_start(void *arg1, void *arg2)
 	 */
     pid_t x = syscall(__NR_gettid);
     fprintf(stderr, "hello_start pid:%u\n", x);
-    printf("------------------- hello_blob ----------------- will do spdk_bdev_get_by_name\n");
+    fprintf(stderr, "------------------- hello_blob ----------------- will do spdk_bdev_get_by_name\n");
 	bdev = spdk_bdev_get_by_name("Malloc0");
 	if (bdev == NULL) {
 		SPDK_ERRLOG("Could not find a bdev\n");
@@ -442,7 +553,10 @@ hello_start(void *arg1, void *arg2)
 		return;
 	}
 
-	spdk_bs_init(bs_dev, NULL, bs_init_complete, hello_context);
+    fprintf(stderr, "will call spdk_bs_init\n");
+	//spdk_bs_init(bs_dev, NULL, bs_init_complete, hello_context);
+	spdk_bs_load(bs_dev, NULL, bs_init_complete, hello_context);
+    fprintf(stderr, "spdk_bs_init return pid:%u\n", get_thread_tid());
 }
 
 int
@@ -456,7 +570,7 @@ main(int argc, char **argv)
 
 	/* Set default values in opts structure. */
 	spdk_app_opts_init(&opts);
-    printf("spdk_app_opts_init\n");
+    fprintf(stderr, "spdk_app_opts_init return\n");
 
 	/*
 	 * Setup a few specifics before we init, for most SPDK cmd line
@@ -486,6 +600,7 @@ main(int argc, char **argv)
 		 * spdk_app_start() before hello_start() runs.
 		 */
 		rc = spdk_app_start(&opts, hello_start, hello_context, NULL);
+        fprintf(stderr, "spdk_app_start return pid:%u\n", get_thread_tid());
 		if (rc) {
 			SPDK_NOTICELOG("ERROR!\n");
 		} else {
